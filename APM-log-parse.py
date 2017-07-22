@@ -4,6 +4,7 @@
 # Northern Embedded Solutions
 
 import csv
+import re
 from sys import argv
 
 # Accepts batches of files by running the command:
@@ -21,6 +22,7 @@ for File in argv[1:]:
     latRef = 'N/A'
     lonRef = 'N/A'
     rel_alt = '0'
+    first_position = 0
 
     # Read input file and create output file
     inFile = open(filename)
@@ -32,7 +34,7 @@ for File in argv[1:]:
     # Open output files for writing
 
     with open(outFileName, 'w') as csvFile,\
-            open(outFileName[0:-4] + '_GPGGA' + '.csv', 'w') as gpggaFile:
+            open(outFileName[0:-4] + '_GPGGA' + '.txt', 'w') as gpggaFile:
 
         csvwriter = csv.writer(csvFile, delimiter=',')
         gpggawriter = csv.writer(gpggaFile, delimiter=',')
@@ -43,6 +45,10 @@ for File in argv[1:]:
             tempList = line.split(',')
 
             if "mavlink_global_position_int_t" in tempList:
+                # Set first position flag so we know we know have data
+                # in our variables
+                first_position = 1
+
                 # Timestamp is always first value in a line
                 timestamp = tempList[0]
                 # Get index of 'lat' marker
@@ -52,10 +58,6 @@ for File in argv[1:]:
                 # Add decimal point to latitude value
                 latitude = lat_var[:2] + '.' + lat_var[2:]
 
-                if latitude[0:1] == '-':
-                    latRef = 'S'
-                else:
-                    latRef = 'N'
 
                 # Get index of 'lon' marker
                 k = tempList.index('lon')
@@ -63,11 +65,6 @@ for File in argv[1:]:
                 lon_var = tempList[k+1]
                 # Add decimal point to longitude value
                 longitude = lon_var[:4] + '.' + lon_var[4:]
-
-                if longitude[0:1] == '-':
-                    lonRef = 'W'
-                else:
-                    lonRef = 'E'
 
                 # Get index of 'relative_alt' marker
                 l = tempList.index('relative_alt')
@@ -79,9 +76,25 @@ for File in argv[1:]:
                 # Write values everytime we get a "global_position" packet
                 csvwriter.writerow([timestamp, latitude, longitude, rel_alt])
 
-            if "mavlink_gps_raw_int_t" in tempList:
+            if "mavlink_gps_raw_int_t" in tempList and first_position:
                 # Get only the time, not date
-                time = tempList[0].split('T')[1]
+                timeVar = tempList[0].split('T')[1]
+                time = re.sub('[:]', '', timeVar)
+
+                lat = lat_var[:4] + '.' + lat_var[4:]
+                lon = lon_var[:6] + '.' + lon_var[6:]
+
+                if lat[0:1] == '-':
+                    latRef = 'S'
+                    lat = lat[1:]
+                else:
+                    latRef = 'N'
+
+                if lon[0:1] == '-':
+                    lonRef = 'W'
+                    lon = lon[1:]
+                else:
+                    lonRef = 'E'
 
                 # Get index of 'fix_type' marker
                 m = tempList.index('fix_type')
@@ -108,8 +121,8 @@ for File in argv[1:]:
                 chksum = ''
 
                 # Create GPGGA file to allow geotagging with exiftool
-                gpggawriter.writerow(["$GPGGA", time, latitude, latRef,
-                                     longitude, lonRef, fixQ, nSats, HDOP,
+                gpggawriter.writerow(["$GPGGA", time, lat, latRef,
+                                     lon, lonRef, fixQ, nSats, HDOP,
                                      rel_alt, 'M', height, 'M', chksum])
 
     # Close file
