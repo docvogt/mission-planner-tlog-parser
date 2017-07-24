@@ -4,7 +4,8 @@
 # Northern Embedded Solutions
 
 import csv
-import re
+import pytz
+from datetime import datetime
 from sys import argv
 
 # Accepts batches of files by running the command:
@@ -58,7 +59,6 @@ for File in argv[1:]:
                 # Add decimal point to latitude value
                 latitude = lat_var[:2] + '.' + lat_var[2:]
 
-
                 # Get index of 'lon' marker
                 k = tempList.index('lon')
                 # Longitude value is next value after 'lon' marker
@@ -77,9 +77,18 @@ for File in argv[1:]:
                 csvwriter.writerow([timestamp, latitude, longitude, rel_alt])
 
             if "mavlink_gps_raw_int_t" in tempList and first_position:
-                # Get only the time, not date
-                timeVar = tempList[0].split('T')[1]
-                time = re.sub('[:]', '', timeVar)
+                # Create a local timezone with pytz
+                local = pytz.timezone("America/Anchorage")
+                # Convert local time stamp to naive datetime object
+                naive_dt = datetime.strptime(tempList[0],
+                                             "%Y-%m-%dT%H:%M:%S.%f")
+                # Create aware local datetime object
+                local_dt = local.localize(naive_dt)
+                # Convert aware datetime object to UTC timezone
+                utc_dt = local_dt.astimezone(pytz.utc)
+                # Get the properly formatted time: e.g. 124231.235
+                # for 12:42:31.235
+                time = utc_dt.time().strftime("%H%M%S.%f")[:-3]
 
                 lat = lat_var[:4] + '.' + lat_var[4:]
                 lon = lon_var[:6] + '.' + lon_var[6:]
