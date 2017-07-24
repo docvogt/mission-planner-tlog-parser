@@ -3,14 +3,21 @@
 # Samuel Vanderwaal, 2015
 # Northern Embedded Solutions
 
+import sys
 import csv
 import pytz
 from datetime import datetime
-from sys import argv
+
+message = """Enter TLog local timezone in standard Olson format.
+             E.g.: 'America/Anchorage'.
+             See https://en.wikipedia.org/wiki/Tz_database for more details.
+             : """
+
+timezone = input(message)
 
 # Accepts batches of files by running the command:
 # 'python APM-log-parse.py *.csv'
-for File in argv[1:]:
+for File in sys.argv[1:]:
     filename = File
 
     coordArray = []
@@ -77,8 +84,13 @@ for File in argv[1:]:
                 csvwriter.writerow([timestamp, latitude, longitude, rel_alt])
 
             if "mavlink_gps_raw_int_t" in tempList and first_position:
-                # Create a local timezone with pytz
-                local = pytz.timezone("America/Anchorage")
+                try:
+                    # Create a local timezone with pytz
+                    local = pytz.timezone(timezone)
+                except pytz.exceptions.UnknownTimeZoneError:
+                    print("Not a timezone or wrong formatting!")
+                    sys.exit(1)
+
                 # Convert local time stamp to naive datetime object
                 naive_dt = datetime.strptime(tempList[0],
                                              "%Y-%m-%dT%H:%M:%S.%f")
